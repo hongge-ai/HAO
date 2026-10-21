@@ -8,7 +8,7 @@
 #   3. 对 HAO 三个脚本（guard / secret / state）的包装
 #
 # 凡是「生成/复用凭据」「写状态」「判归属」三件事，都不在这里自己实现 ——
-# 见仓库根 CLAUDE.md：那三件事只能走 skills/hao-deploy/scripts/ 下的脚本，
+# 见仓库根 AGENTS.md：那三件事只能走 skills/hao-deploy/scripts/ 下的脚本，
 # 否则交接契约和「密钥不进对话」的保证就废了。
 
 RED='\033[0;31m'

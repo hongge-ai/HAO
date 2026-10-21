@@ -141,7 +141,7 @@ ssh_config_file() {
 
 # 远端 shell 的单引号转义：' -> '\''
 # 不用 ${var//pat/rep}：bash 的替换把 & 当作匹配文本，路径里带 & 会被静默写坏
-# （CLAUDE.md 有这条硬约束）。这里用显式循环，也避免 sed 对反斜杠的二次解释。
+# （AGENTS.md 有这条硬约束）。这里用显式循环，也避免 sed 对反斜杠的二次解释。
 shq() {
     local s="$1" out="" ch i
     if [ -z "$s" ]; then printf "''"; return 0; fi

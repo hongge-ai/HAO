@@ -142,7 +142,7 @@ include /etc/nginx/snippets/security-headers*.conf;
 server 也 include，网关就在明文 HTTP 上应答了。证书没办好之前不要加这道门。
 
 ```bash
-# 1. 口令落盘（值不进对话）。凭据文件名 = service ID，见 CLAUDE.md 的 /etc/hao/<svc>.env
+# 1. 口令落盘（值不进对话）。凭据文件名 = service ID，见 AGENTS.md 的 /etc/hao/<svc>.env
 "$SKILL/scripts/hao-secret.sh" write /etc/hao/nginx-hardening.env 'ADMIN_PASS=@password:20'
 # 2. 渲染 htpasswd
 "$SKILL/scripts/hao-secret.sh" render "$SKILL/templates/nginx-htpasswd.conf" \

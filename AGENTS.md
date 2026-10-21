@@ -1,6 +1,11 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding agents working with code in this repository.
+
+原名 `CLAUDE.md`。改名的原因：`claude plugin validate --strict` 会把仓库根
+（marketplace 里 `source: "./"` 指向的那一层）当成插件目录，见到根上的
+`CLAUDE.md` 就报「at the plugin root is not loaded as project context」。
+`AGENTS.md` 是同类约定文件名，Claude Code 与多数 runtime 都会默认加载。
 
 ## What this is
 
