@@ -38,13 +38,20 @@ sudo ./install.sh bbr                    # 顺手打开 BBR
 
 ## 工具一：`reality`
 
-VLESS + XTLS-Vision + Reality。借用一个真实站点（默认 `www.microsoft.com`）的
+VLESS + XTLS-Vision + Reality。借用一个真实站点（默认 `www.apple.com`）的
 TLS 握手特征做伪装：被主动探测时把流量原样转给那个站点，探测者拿到的是对方的真实证书，
 看不出这里有代理。所以不需要自己的域名，也不需要证书。
 
 ```bash
-sudo ./install.sh reality --port 8443 --sni www.microsoft.com
+sudo ./install.sh reality --port 8443 --sni www.apple.com
 ```
+
+**为什么默认是 apple.com**：证书链 2 级（主流 HTTPS 站点里最短的一档），
+Akamai 边缘节点，TLS 1.3 + h2 齐备。Reality 是把 `dest` 的握手字节原样转发，
+链越短，字节量和默认客户端指纹越接近。选目标时按这个顺序看：**证书链短于等于 3 级
+→ TLS 1.3 可协商 → 服务器能稳定连上 → 知名大厂站点**。不要只看知名度，
+也不要选 Cloudflare 节点（`www.cloudflare.com`、`www.speedtest.net` 之类，
+那段 IP 被大量代理滥用，已是重点监控对象）。
 
 客户端参数（含 UUID、公钥、shortId 和 vless:// 分享链接）写在
 `/etc/hao/xray-reality.client.txt`，权限 0600，自己 `sudo cat` 去看。
@@ -201,8 +208,8 @@ printf 'proxy = "https://<域名>:<端口>"\nproxy-user = "<用户>:' > /tmp/pc
 read -rs -p '口令（不回显）: ' PW && printf '%s"\n' "$PW" >> /tmp/pc && unset PW
 curl -K /tmp/pc https://api.ipify.org; rm -f /tmp/pc    # 应该返回服务器的公网 IP
 
-# Reality 的伪装是否成立：应该看到伪装目标（如微软）的真实证书
-openssl s_client -connect <服务器IP>:8443 -servername www.microsoft.com </dev/null 2>/dev/null \
+# Reality 的伪装是否成立：应该看到伪装目标（如 Apple）的真实证书
+openssl s_client -connect <服务器IP>:8443 -servername www.apple.com </dev/null 2>/dev/null \
   | openssl x509 -noout -subject -issuer
 ```
 

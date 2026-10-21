@@ -2,15 +2,19 @@
 #
 # science/lib/reality.sh —— 工具一：VLESS + XTLS-Vision + Reality 入站。
 #
-# 特点：不需要域名、不需要证书。Reality 借用一个真实站点（默认 www.microsoft.com）
+# 特点：不需要域名、不需要证书。Reality 借用一个真实站点（默认 www.apple.com）
 # 的 TLS 握手特征做伪装，被主动探测时把流量原样转给那个站点，探测者看到的是
 # 对方的真实证书。代价是只有支持 Reality 的客户端能连（v2rayN / v2rayNG /
 # Shadowrocket / sing-box / Mihomo），填不进「系统代理」那种地方。
+#
+# 默认伪装目标的选择理由（2026-10 实测）：证书链 2 级（主流站点里最短的一档），
+# Akamai 边缘节点，TLS 1.3 + h2 齐备，握手 ~19ms。链越短，ServerHello 的字节量
+# 越接近默认客户端指纹。换目标时至少确认这四项，别只看站点知名度。
 
 REALITY_SERVICE="xray-reality"
 REALITY_FRAGMENT_NAME="10-reality.json"
 REALITY_PORT_DEFAULT=8443
-REALITY_SNI_DEFAULT="www.microsoft.com"
+REALITY_SNI_DEFAULT="www.apple.com"
 
 reality_usage() {
     cat >&2 <<'EOF'
@@ -18,7 +22,7 @@ reality_usage() {
 
 选项:
   --port PORT       监听端口（默认 8443）
-  --sni DOMAIN      伪装目标站点（默认 www.microsoft.com），必须是真实可达的 HTTPS 站点
+  --sni DOMAIN      伪装目标站点（默认 www.apple.com），必须是真实可达的 HTTPS 站点
   --rotate-keys     重新生成密钥与 UUID。**现有客户端全部失效**，默认不这么做
   -h, --help        显示本帮助
 
