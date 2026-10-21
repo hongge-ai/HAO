@@ -1,6 +1,11 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding agents working with code in this repository.
+
+原名 `CLAUDE.md`。改名的原因：`claude plugin validate --strict` 会把仓库根
+（marketplace 里 `source: "./"` 指向的那一层）当成插件目录，见到根上的
+`CLAUDE.md` 就报「at the plugin root is not loaded as project context」。
+`AGENTS.md` 是同类约定文件名，Claude Code 与多数 runtime 都会默认加载。
 
 ## What this is
 
@@ -100,7 +105,7 @@ follows a procedure in `references/` and the user has confirmed.
   module (it applies to every certificate, not to one site).
   Self-signed fallback goes to Debian's `/etc/ssl/certs` + `/etc/ssl/private`, never
   into `/etc/letsencrypt/`.
-- **`scripts/`** — only three things stay deterministic, because improvising them
+- **`scripts/`** — only four things stay deterministic, because improvising them
   breaks a guarantee:
   - `hao-secret.sh` — generates/reuses/injects credentials so values never enter the
     transcript. Reuses existing keys by default (that is the idempotency guarantee);
@@ -125,6 +130,25 @@ follows a procedure in `references/` and the user has confirmed.
     `hao-site-` unit prefix means `/etc/systemd/system/<name>.service` can silently
     override a distro unit — a site called `nginx` would shadow Nginx's own unit with no
     error. `vhost-owner` and `unit-free` share `classify_hao_file`.
+  - `hao-remote.sh` — SSH transport and authentication, so the agent can run on a
+    laptop and drive a server. Nine subcommands, none of which know about modules:
+    `resolve`, `hostkey`, `bootstrap`, `probe`, `session`, `push`, `exec`, `cleanup`,
+    `targets`. Design points worth keeping: **`$SKILL` is redefined as the remote
+    directory**, which is what lets all 98 `"$SKILL/scripts/..."` call sites in the
+    references stay unchanged — `exec` exports it and `cd`s into the pushed tree.
+    **The bundle is pushed, not streamed**, because `hao-state.sh convention` reads its
+    body from stdin and `bash -s` would break `-h` (`BASH_SOURCE` becomes `main`).
+    **The bundle is gated on three checks** (`bash -n`, no `\r`, tree hash matches) —
+    the CRLF one matters because the Windows worktree is CRLF and a `\r` shebang fails
+    to exec. **Host keys are pinned per target in `~/.ssh/hao_known_hosts`**, never
+    `accept-new`, because every guard in this skill answers *permissively* when pointed
+    at the wrong host. **No secret values in argv**: scripts reach the remote via
+    stdin; the bootstrap password goes through `ssh-copy-id` or `SSH_ASKPASS` reading a
+    `0600` file. Two portability traps that cost real debugging time: MSYS `sha256sum`
+    writes `hash *path` and Windows `sort` orders differently from GNU/Linux, so the
+    tree hash must use `LC_ALL=C sort` and hash only the digest column; and
+    `MSYS2_ARG_CONV_EXCL='*'` must **not** be set when calling the native `ssh.exe`,
+    or `-o IdentityFile=/c/...` arrives un-translated and authentication silently fails.
 - **Runtime state on a deployed host**: `/var/lib/hao/` (`HANDOFF.md`,
   `DEPLOY-INTENT.md`, `manifest.json` schema_version 1, `services/<svc>.json` +
   `.resources` + `.intent`); credentials live separately in `/etc/hao/<svc>.env`

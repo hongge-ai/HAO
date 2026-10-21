@@ -3,6 +3,34 @@
 HAO 通过插件市场分发（`.claude-plugin/marketplace.json`）。
 `plugin.json` 里的 `version` 是语义化版本，供插件生态的 semver 校验使用。
 
+## 0.2.0 —— 远程模式
+
+HAO 不再要求「Claude Code 必须跑在目标服务器上」。agent 可以在笔记本上通过
+SSH 驱动一台或多台服务器，服务器上不装任何常驻程序。
+
+### 新增
+
+- `scripts/hao-remote.sh` —— 传输与认证层，九个只做一件事的子命令：
+  `resolve`（别名/地址判定）、`hostkey`（只读扫描指纹）、`bootstrap`（钉死主机
+  密钥 + 生成专用密钥 + 装公钥 + 仅密钥验证 + 写 ssh config）、`probe`（只读身份
+  探测）、`session`（远端临时目录 + 三道落地门禁）、`push`、`exec`（命令或 stdin
+  脚本）、`cleanup`、`targets`。
+- `references/remote.md` —— 选目标、指纹确认、两条装公钥路径、包裹规则、退出码
+  语义、远程下的状态与交接、排错表。
+- `tests/test-remote.sh` —— 离线行为测试（假 ssh 桩），真机端到端用
+  `HAO_TEST_REMOTE_TARGET` opt-in。
+- 专用密钥 `~/.ssh/hao_ed25519` 与独立 `~/.ssh/hao_known_hosts`，不复用用户个人密钥，
+  也不污染用户的 known_hosts。
+
+### 改变
+
+- `SKILL.md` 的「前提：你必须在目标服务器上」改为「0. 先确定操作哪台机器」，
+  本地/远程两条路径并列；新增「一个代码块 = 一次 exec」硬规则；意图表从
+  「安装清单」降级为「组织提问的候选」；硬规则增至六条。
+- 远程模式下 `handoff` 默认加 `--skip-agent-files`，`/var/lib/hao/HANDOFF.md`
+  是权威交接物。
+- 仓库地址同步到 `hongge-ai/HAO`。
+
 ## 0.1.0（未发布）—— 初始版本
 
 第一个版本，尚未对外发布过。在这之前，仓库经历过一次形态上的重写（从一套约
@@ -27,6 +55,7 @@ HAO 不是命令行工具，是一套**给 AI agent 用的部署知识**：
   `hao-secret.sh`（凭据生成/复用/注入，值不进对话、不进 argv）、
   `hao-state.sh`（状态与交接契约，含 `amend` / `orphans` 两条给"记录不可信"
   兜底的子命令）、`hao-guard.sh`（覆盖前的只读归属判断）。
+  （0.2.0 起增加第四个：`hao-remote.sh`，见上。）
 
 安装：
 

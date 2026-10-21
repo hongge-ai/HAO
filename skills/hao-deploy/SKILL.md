@@ -1,11 +1,12 @@
 ---
 name: hao-deploy
-description: 在一台 Debian/Ubuntu 服务器上部署网站和开发运维工具，面向不懂运维的用户。当用户想把自己的 Git 仓库变成能访问的网站、想在 VPS 上装 Nginx/Docker/Node 等工具、想更新或排查已部署的站点、或者接手一台别人（或以前的自己）部署过的服务器时使用。部署完成后会在主机上留下交接记录，任何后续 agent 都能照规则接手。
-when_to_use: 用户说"帮我把这个仓库部署上线""在服务器上装个 nginx""我的站点打不开了""这台机器上装了什么""接手一下这台服务器"时触发。也适用于用户刚买了一台 VPS、想搭一个能干活或学习的环境。
+description: 在 Debian/Ubuntu 服务器上部署网站和开发运维工具，面向不懂运维的用户。可以从本机通过 SSH 远程操作，也可以直接在服务器上运行。当用户想把自己的 Git 仓库变成能访问的网站、想在 VPS 上装 Nginx/Docker/Node 等工具、想初始化一台新买的服务器、想查询服务器状态、想更新或排查已部署的站点、或者接手一台别人（或以前的自己）部署过的服务器时使用。
+when_to_use: 用户说"帮我把这个仓库部署上线""在服务器上装个 nginx""连上我那台服务器看看""把这台新机器初始化一下""我的站点打不开了""这台机器上装了什么""接手一下这台服务器"时触发。也适用于用户刚买了一台 VPS、想搭一个能干活或学习的环境。
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/hao-guard.sh:*)
   - Bash(${CLAUDE_SKILL_DIR}/scripts/hao-secret.sh:*)
   - Bash(${CLAUDE_SKILL_DIR}/scripts/hao-state.sh:*)
+  - Bash(${CLAUDE_SKILL_DIR}/scripts/hao-remote.sh:*)
 ---
 
 # HAO 部署
@@ -23,9 +24,20 @@ SKILL="${CLAUDE_SKILL_DIR}"
 一个具体目录。权限白名单按脚本的绝对路径匹配，用 `$SKILL/...` 调用是对的；
 第一次调用某个脚本时可能弹一次授权，那不是出错。）
 
-## 前提：你必须在目标服务器上
+## 0. 先确定操作哪台机器
 
-`hao-deploy` 的所有操作都是本机操作。先确认三件事：
+有两种模式，开局必须先选一个，并把选中的那台念给用户确认：
+
+| 模式 | 什么时候用 | `$SKILL` 指向 |
+|---|---|---|
+| **本地** | Claude Code 就跑在这台 Debian/Ubuntu 服务器上 | `${CLAUDE_SKILL_DIR}` |
+| **远程** | 你在笔记本上，要操作一台 VPS | 远端临时目录（`hao-remote.sh session` 返回） |
+
+**远程模式是这个 skill 的常规用法。** 用户说到某台服务器时，先看
+`hao-remote.sh targets` 里有没有登记过；有就直接用那个别名，没有就走
+`references/remote.md` 的接入流程（扫描主机指纹 → 确认 → 装专用公钥）。
+
+### 本地模式
 
 ```bash
 "$SKILL/scripts/hao-guard.sh" os-supported     # 输出 "<id> <version> supported|unsupported"
@@ -33,25 +45,54 @@ id -u                                          # 期望 0
 curl -s --max-time 5 https://api.ipify.org     # 这台机器的公网 IP
 ```
 
-三条停止条件：
+### 远程模式
 
-- **不是 root 且 `sudo -n true` 也不通** → 停下。装包、写 `/etc`、改 systemd 都要 root。
-- `os-supported` 以 `unsupported` 结尾 → 停下。支持 Debian 13/12 与
+```bash
+R="$SKILL/scripts/hao-remote.sh"
+"$R" targets                                   # 已经登记过哪些服务器
+"$R" resolve <目标>                            # 别名还是地址、host/user/port
+"$R" probe <目标>                              # 只读：系统、uid、公网 IP、身份哈希
+```
+
+然后：
+
+```bash
+SKILL="$("$R" session <目标>)"                 # 建立远端会话，stdout 只有路径
+```
+
+`session` 会把 `scripts/` 与 `templates/` 推到服务器上的临时目录，过三道门禁
+（脚本可解析、无 CRLF、树哈希一致）后才启用。**此后所有代码块都要这样执行：**
+
+```bash
+"$R" exec <目标> - <<'__HAO_BLOCK__'
+<原代码块，一字不改；块内的 $SKILL 由远端展开>
+__HAO_BLOCK__
+```
+
+### 两边都要满足的停止条件
+
+- **不是 root，且 `sudo -n true` 也不通** → 停下。装包、写 `/etc`、改 systemd 都要 root。
+- `os_supported` / `os-supported` 不是 `supported` → 停下。支持 Debian 13/12 与
   Ubuntu 26.04/24.04/22.04 LTS，别的系统不要硬上。
-  （判断要匹配结尾：`case "$(...)" in *" supported") ;; *) 停 ;; esac`，
-  它的输出是三段而不是一个单词。）
-- **公网 IP 不是用户以为的那台机器** → 停下。把上面那个 IP 念给用户确认一次，
-  `hostname` 是问不出这件事的：笔记本和 VPS 的 hostname 长得一样。
-  如果这是用户自己的笔记本、而要部署的是一台远程 VPS，告诉他：需要先 `ssh` 到那台
-  服务器、在服务器上启动 Claude Code，再让我干活。在笔记本上跑这套流程只会把笔记本改坏。
+  （本地版的输出是三段，判断要匹配结尾：`case "$(...)" in *" supported") ;; *) 停 ;; esac`。）
+- **目标不是用户以为的那台机器** → 停下。远程模式把 `probe` 里的 `hostname`、
+  `public_ip`、`machine_id` 念给用户确认；本地模式念公网 IP。
+  `hostname` 单独一项是问不出这件事的：笔记本和 VPS 的 hostname 长得一样。
+
+**为什么远程模式必须先确认机器**：三个 guard 脚本在「错的机器」上全部返回
+放行值——`vhost-owner` 说 `free`、`managed-file` 说 `missing`、`repo-identity` 说
+`absent`、`unit-free` 说 `free`，`record` 会静默跳过不存在的路径，`remove` 会
+直接删记录。它们只能回答「我看得见的这台机器」，看不出来你盯错了。钉死的主机
+密钥加上开机确认，是唯一能拦住这件事的两道控制。
 
 ## 工作流程
 
 ### 1. 先弄清用户到底要什么
 
-用户说的是目标（"我想让我的博客上线"），不是服务清单。你负责翻译：
+用户说的是目标（"我想让我的博客上线"），不是服务清单。这张表只用来**组织提问**，
+不是安装清单：
 
-| 用户想要 | 实际需要 |
+| 用户想要 | 候选模块 |
 |---|---|
 | 让我的网站/博客上线 | `nginx` + `site`（node 类型再加 `node`） |
 | 我要一台能跑 AI 工具的机器 | `node` + `uv` + `claude-code` |
@@ -59,6 +100,13 @@ curl -s --max-time 5 https://api.ipify.org     # 这台机器的公网 IP
 | 服务器刚买来，先弄安全点 | `fail2ban` + `swap` + `journald` |
 | 我要给站点防扫站/防爆破 | `nginx-hardening` + `fail2ban-nginx`（站点在 CF 后面时连边缘那步一起给用户） |
 | 我要在服务器上用 git / GitHub | `git` + `gh` |
+
+**候选不等于决定。** 把候选连同全部模块用一行一项列出来（名称 + 作用 + 大致
+耗时），明确问「你要装哪几个」，等用户勾选后才动手。用户没点名的模块不装，
+包括「顺手装一下也不费事」的那种。用户拒绝的候选记一条 `skipped`。
+
+同一台机器分多次来装时，先跑 `services` 看已经有什么，只提缺口，不要把上一次
+的模块集合照搬。多台服务器同理：每台单独问。
 
 问清缺失的关键信息，一次问完，不要来回挤牙膏。各模块要问什么，看对应的
 reference。**不要替用户猜域名、Git 身份、仓库地址这类东西。**
@@ -114,6 +162,7 @@ reference。**不要替用户猜域名、Git 身份、仓库地址这类东西�
 
 另外几份跨模块文档：
 
+- `references/remote.md` —— 远程模式：选目标、主机指纹、装公钥、会话与 `exec` 包裹规则（远程模式开场必读）
 - `references/handoff.md` —— 状态记录格式与交接契约（收尾必读）
 - `references/safety.md` —— 完整安全契约
 - `references/uninstall.md` —— 卸载流程。**只在用户明确要求时才读它**
@@ -230,27 +279,32 @@ HAO 只装**通用的运维底座**：Web 服务器、运行时、容器引擎�
 `--user` 为什么不能省（默认是 `${SUDO_USER:-root}`，以 root 直跑时指针块只会写进
 `/root`），都见 `references/handoff.md`。
 
+**远程模式下 `handoff` 还要加 `--skip-agent-files`**：服务器上未必装了 AI 助手，
+写进去的指针块没人读。权威交接物是服务器上的 `/var/lib/hao/HANDOFF.md`，下一次
+远程会话用 `exec cat /var/lib/hao/HANDOFF.md` 取。详见 `references/remote.md`。
+
 `record` 记的是**这台机器现在是什么样**（资源路径、归属、哈希），机器销毁就没了；
 它会静默跳过不存在的路径并打印一行"跳过"——那行是证据，说明某一步没做成。
 `intent` 记的是**怎么再造一台一样的**（用户给的那些回答），**一个 service ID
 只有一条记录**（`record` 是整体替换），所以能部署多份的东西必须带实例标识
 （`site-blog` 而不是 `site`）。这两条的完整理由在 `references/handoff.md`。
 
-## 三个必须走脚本的地方
+## 四个必须走脚本的地方
 
-其余步骤你直接用 shell 命令做就行。只有这三类事情不能即兴发挥：
+其余步骤你直接用 shell 命令做就行。只有这四类事情不能即兴发挥：
 
 | 脚本 | 为什么不能自己来 | 退出码怎么读 |
 |---|---|---|
 | `scripts/hao-secret.sh` | 密钥值绝不能进入对话记录。它负责生成、复用、注入，你只看到路径和 key 名 | `has` 的退出码就是答案 |
 | `scripts/hao-state.sh` | 下一个 agent 要能**信任**状态记录。格式漂了，交接契约就废了 | `drift` 非 0 = 有漂移，别用 `&&` 串 |
 | `scripts/hao-guard.sh` | 覆盖前的归属判断。全部只读，返回 `foreign` 就必须停 | 只表示脚本跑通了；结论在 stdout，`foreign` 也是 0 |
+| `scripts/hao-remote.sh` | 远程传输、主机指纹、会话生命周期。密钥不进 argv、远端摘要过期、目标身份这几件事不能靠即兴拼接 | 透传远端退出码；`255` = 传输失败 |
 
-三个脚本都支持 `-h` 查看用法。
+四个脚本都支持 `-h` 查看用法。
 
 ## 硬规则
 
-完整版见 `references/safety.md`，最关键的四条：
+完整版见 `references/safety.md`，最关键的六条：
 
 1. **改系统之前先讲清楚并取得确认**，只读检查不需要确认。
 2. **`foreign` / `not-git` / `remote-mismatch` / `other <issuer>` 一律停下**，
@@ -258,6 +312,11 @@ HAO 只装**通用的运维底座**：Web 服务器、运行时、容器引擎�
 3. **凭据只报路径**，永不打印内容；用户自带密钥走 `@file:`（`@env:` 见
    `references/safety.md` 的说明），不要放进命令行参数。
 4. **如实汇报**。失败说失败，降级说降级，没生效说没生效。
+5. **用户没点名的模块不装。** 意图表只用来组织提问，不是清单；包括「顺手
+   装一下也不费事」的那种。
+6. **远程模式下，目标身份没经用户确认之前不做任何写入。** 首次连接要念
+   `probe` 的 hostname / 公网 IP / 系统版本；主机密钥对不上就是硬失败，
+   不要「更新一下 known_hosts」。
 
 ## 收尾汇报
 
