@@ -121,8 +121,8 @@ done < <(grep -rhoE 'docs/[A-Za-z0-9._-]+\.md' \
     "$ROOT_DIR/.claude-plugin" 2>/dev/null | sort -u)
 [ "$missing" -eq 0 ] && note "指向 docs/ 的引用都存在" || fail=1
 
-# ---------- 三个脚本必须可执行且有帮助 ----------
-for s in hao-guard hao-secret hao-state; do
+# ---------- 四个脚本必须可执行且有帮助 ----------
+for s in hao-guard hao-secret hao-state hao-remote; do
     script="$SKILL_DIR/scripts/$s.sh"
     if [ ! -x "$script" ]; then
         bad "$s.sh 不可执行"

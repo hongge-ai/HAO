@@ -4,8 +4,9 @@
 
 HAO is an **AI agent skill**, not a program. There is no CLI and no installer. The
 deployment procedures live as prose in `skills/hao-deploy/references/` and are executed
-by an agent, as root, on the host the agent is running on. Three small scripts under
-`skills/hao-deploy/scripts/` are the only deterministic parts.
+by an agent, as root, either on the host it is running on or on a remote host it reaches
+over SSH. Four small scripts under `skills/hao-deploy/scripts/` are the only
+deterministic parts.
 
 That shape decides how the guarantees below are enforced. Some are enforced *in code*
 (the scripts refuse to do the unsafe thing). The rest are **behavioural rules the
@@ -57,6 +58,48 @@ containers cannot realistically exercise systemd or Docker.
   `*credential*`, …) and redacts credentials embedded in URLs
   (`https://user:token@host/…` → `https://***@host/…`) in both the generated document
   and the on-disk record.
+
+## Remote mode: the control plane moves to the laptop
+
+When HAO drives a server over SSH, the machine running the agent is no longer the
+machine being changed. That shift is what the guarantees below exist to contain.
+
+**Enforced in `scripts/hao-remote.sh`:**
+
+- **Host keys are pinned, never trusted on first use.** `bootstrap` requires an explicit
+  `--fingerprint SHA256:…` that matches what `hostkey` reported, and refuses outright when
+  the host already has a *different* key in `~/.ssh/hao_known_hosts`. A changed host key
+  means the machine was reimaged or something is impersonating it; treating that as
+  "update the entry" would remove the only control that detects a wrong target. Every
+  later connection uses `StrictHostKeyChecking=yes` with that file, passed as `-o` so a
+  permissive `StrictHostKeyChecking no` in the user's own config cannot leak in.
+- **The bootstrap password never enters argv, a log, or the transcript.** The default
+  path prints an `ssh-copy-id` command for the user to run, so ssh reads the password
+  from its own tty. The opt-in `--askpass` path reads a user-created `0600` file through
+  `SSH_ASKPASS`, passing only the *path* via an environment variable, and deletes the
+  file afterwards. On Windows the permission check uses the NTFS ACL, because `chmod` on
+  a Git Bash checkout is cosmetic.
+- **A dedicated key is used, never the user's personal keys.** `~/.ssh/hao_ed25519` is
+  generated if absent and left untouched if present. Reusing an existing personal key
+  would make "which doors does this key open" unauditable across a fleet.
+- **The pushed bundle is verified before it is used.** The remote copy must pass
+  `bash -n` on every script, contain no `\r` (a CRLF shebang fails to exec on Linux and
+  a CRLF `set -euo pipefail` is rejected as an invalid option), and hash to the same tree
+  digest as the client. A partial or corrupted upload is refused rather than half-run.
+- **The remote scratch directory is randomly named and self-owned.** `mktemp -d` under
+  `/tmp` with mode `0700`; a reused directory is accepted only if it is not a symlink,
+  is owned by the login user, and carries our marker. Deletion refuses anything that
+  fails those checks, so `cleanup` cannot be tricked into removing someone else's tree.
+
+**Behavioural rule for the agent** (`references/remote.md`):
+
+- **Confirm the target identity before the first write.** `probe` reports the remote
+  hostname, public IP, OS and a machine identity hash, and the agent must read those back
+  to the user. This is not ceremony: on the wrong machine `hao-guard.sh` answers `free`,
+  `managed-file` says `missing`, `repo-identity` says `absent`, and `record` silently
+  skips paths that do not exist. Every guard in this skill is *permissive when run
+  against the wrong host*, so pinned host keys plus a human confirmation are the only two
+  controls that catch it.
 
 ## Where things live, and why
 
@@ -165,6 +208,17 @@ is **your responsibility**. `SKILL.md` requires the agent to raise this explicit
   verified by running it on a throwaway VM, not by the test suite.
 - **The transcript is a secret-bearing artifact.** The contract above keeps generated
   credentials out of it, but anything the user types into the conversation is in it.
+  This is why the remote flow never asks for a password in the chat: a pasted password
+  is persisted to the local transcript and sent to the model provider, and changing it
+  afterwards requires the user to notice and act.
+- **In remote mode the server is a supply-chain input.** The agent runs whatever the
+  server reports — `os-release`, command output, file contents. A compromised server can
+  lie about all of it. The pinned host key is what makes "this is not the machine I
+  connected to last time" detectable; it does not make a hostile machine trustworthy.
+- **Remote commands arrive as text.** Each `exec` is a fresh SSH connection; the remote
+  command string is assembled client-side and sent as the command argument, never
+  streamed into a local shell. Secret *values* never appear in it — they travel on stdin
+  or through `hao-secret.sh` on the remote side.
 
 ## Reporting a vulnerability
 

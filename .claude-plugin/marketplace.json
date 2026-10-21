@@ -2,7 +2,7 @@
   "name": "hao",
   "owner": {
     "name": "YoungHong1992",
-    "url": "https://github.com/YoungHong1992"
+    "url": "https://github.com/hongge-ai"
   },
   "metadata": {
     "description": "HAO (HongAgentOps) —— AI agent 驱动的服务器部署工具集"
@@ -11,14 +11,16 @@
     {
       "name": "hao",
       "source": "./",
-      "description": "在 Debian/Ubuntu 服务器上部署网站与开发运维工具。面向小白用户，agent 负责检查、部署、验证，并在主机上留下交接契约。⚠️ 会以 root 修改目标主机，请在目标服务器上使用。",
+      "description": "在 Debian/Ubuntu 服务器上部署网站与开发运维工具。可以从本机通过 SSH 远程操作，也可以直接在服务器上运行。面向小白用户，agent 负责检查、部署、验证，并在主机上留下交接契约。⚠️ 会以 root 修改目标主机。",
       "category": "devops",
       "tags": [
         "deployment",
         "nginx",
         "vps",
         "static-site",
-        "letsencrypt"
+        "letsencrypt",
+        "ssh",
+        "remote"
       ]
     }
   ]
