@@ -50,9 +50,9 @@ usage() {
 用法: sudo ./install.sh <子命令> [选项]
 
 子命令:
-  reality      装 VLESS + Reality 入站（默认 8443）
+  reality      装 VLESS + Reality 入站（默认 443）
                  不需要域名和证书，抗主动探测最强，但只有专门的客户端能用
-  proxy        装 HTTPS 正向代理（默认 8444），用户名 + 口令认证
+  proxy        装 HTTPS 正向代理（默认 8443），用户名 + 口令认证
                  客户端里填：https <域名> <端口> <用户名> <口令>
                  需要一个已解析到本机的域名（要签证书）
   bbr          打开 BBR 拥塞控制

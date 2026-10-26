@@ -7,7 +7,7 @@
 #   -confdir 而不是 -config：入站配置拆成 conf.d/ 下的独立文件，一个工具一个文件，
 #     装一个不用重写另一个，卸一个只需删文件。文件按名字排序合并（数字前缀控制顺序）。
 #   User=root：TLS 证书私钥（/etc/letsencrypt/live/*/privkey.pem）是 0600 root:root，
-#     换成 nobody 就读不到证书。端口本身不需要 root（8443/8444 > 1024）。
+#     换成 nobody 就读不到证书。443 等特权端口由下方的 CAP_NET_BIND_SERVICE 显式允许。
 #   XRAY_LOCATION_ASSET：geoip.dat/geosite.dat 放 /usr/local/share/xray（上游约定的位置），
 #     不写这一行 xray 会去可执行文件同目录找，路由规则里的 geoip:private 就会失效。
 [Unit]

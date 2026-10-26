@@ -18,7 +18,7 @@
 
 HTTPSPROXY_SERVICE="xray-httpsproxy"
 HTTPSPROXY_FRAGMENT_NAME="20-httpsproxy.json"
-HTTPSPROXY_PORT_DEFAULT=8444
+HTTPSPROXY_PORT_DEFAULT=8443
 HTTPSPROXY_USER_DEFAULT="proxy"
 RENEWAL_HOOK="/etc/letsencrypt/renewal-hooks/deploy/restart-xray.sh"
 
@@ -30,7 +30,7 @@ httpsproxy_usage() {
   --domain DOMAIN        代理的域名，必须已经解析到这台机器（证书和客户端都用它）
 
 选项:
-  --port PORT            监听端口（默认 8444）
+  --port PORT            监听端口（默认 8443）
   --user NAME            用户名（默认 proxy）。改了会自动更新账号
   --email ADDR           Let's Encrypt 账户联系邮箱（可选）。不给就不注册联系方式；
                          **不会**替你从域名拼一个，那种地址通常并不存在
