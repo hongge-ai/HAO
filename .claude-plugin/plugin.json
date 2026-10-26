@@ -1,15 +1,15 @@
 {
   "name": "hao",
   "displayName": "HAO (HongAgentOps)",
-  "description": "在 Debian/Ubuntu 服务器上部署网站与开发运维工具的 AI agent skill。面向不懂运维的用户：说清目标，agent 负责检查、部署、验证，并在主机上留下交接记录供后续 agent 接手。会以 root 修改目标主机。",
+  "description": "在 Debian/Ubuntu 服务器上部署网站与开发运维工具的 AI agent skill。可以从本机通过 SSH 远程操作，也可以直接在服务器上运行。面向不懂运维的用户：说清目标，agent 负责检查、部署、验证，并在主机上留下交接记录供后续 agent 接手。会以 root 修改目标主机。",
   "author": {
     "name": "YoungHong1992",
-    "url": "https://github.com/YoungHong1992"
+    "url": "https://github.com/hongge-ai"
   },
-  "homepage": "https://github.com/YoungHong1992/HAO",
-  "repository": "https://github.com/YoungHong1992/HAO",
+  "homepage": "https://github.com/hongge-ai/HAO",
+  "repository": "https://github.com/hongge-ai/HAO",
   "license": "MIT",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "keywords": [
     "deployment",
     "nginx",
@@ -18,12 +18,9 @@
     "ubuntu",
     "devops",
     "static-site",
-    "letsencrypt"
+    "letsencrypt",
+    "ssh",
+    "remote"
   ],
-  "metadata": {
-    "versionNote": "语义化版本，用于插件生态的 semver 校验。分发走插件市场（.claude-plugin/marketplace.json），仓库整体即分发单元，没有单独的发布产物。",
-    "targetHost": "Debian 13/12, Ubuntu 26.04/24.04/22.04 LTS",
-    "privilege": "requires root on the target host"
-  },
   "skills": "./skills/"
 }

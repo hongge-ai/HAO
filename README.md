@@ -7,13 +7,50 @@
 > 并在主机上留下交接记录——之后任何 agent 接手都照同一套规则走。
 
 HAO（HongAgentOps）不是命令行工具，是一套**给 AI agent 用的部署知识**：
-过程文档 + 配置模板 + 三个守住确定性的小脚本。
+过程文档 + 配置模板 + 四个守住确定性的小脚本。
 
-## 安装
+## 两种运行方式
 
-在**目标服务器上**安装（不是你的笔记本）。刚买的机器上完整是这三步：
+| 方式 | 适用 | Claude Code 跑在哪 |
+|---|---|---|
+| **远程（推荐）** | 你坐在笔记本前，要操作一台或几台 VPS | 你的笔记本，通过 SSH 驱动服务器 |
+| **本地** | 机器本身就是开发机，或你已经在服务器上 | 服务器 |
 
-**1. ssh 上去，装 Claude Code**（这一步没人能替你做，之后才有 `/plugin` 可用）：
+远程模式下服务器上什么都不用装——HAO 把几个脚本推到 `/tmp` 下临时执行，用完就删。
+详情见 `skills/hao-deploy/references/remote.md`。
+
+## 安装（远程模式）
+
+**1. 在你的笔记本上装 Claude Code**（已有就跳过）。
+
+Windows 11 自带 OpenSSH 客户端；其他系统装 `openssh-client`。还需要 Git Bash
+（Windows）或普通的 bash。
+
+```
+/plugin marketplace add hongge-ai/HAO
+/plugin install hao@hao
+```
+
+**2. 直接说你要连哪台机器**：
+
+> 连一下 104.233.149.80，端口 46868，root
+
+第一次连接 agent 会先把主机指纹念给你确认，然后引导你装一把专用公钥
+（`~/.ssh/hao_ed25519`）。之后所有连接都走这把钥匙，不再用密码。
+
+**3. 说你要什么**：
+
+> 这台是刚买的，先弄安全一点
+
+> 帮我把 github.com/me/blog 部署到 blog.example.com
+
+> 这台机器上装了什么？
+
+## 安装（本地模式）
+
+机器本身就是目标服务器时，先装 Claude Code，再装 HAO。刚买的机器上完整是这两步：
+
+**1. 装 Claude Code**（这一步没人能替你做，之后才有 `/plugin` 可用）：
 
 ```bash
 ssh <你的用户>@<服务器IP>
@@ -37,26 +74,22 @@ claude          # 首次运行会让你登录
 **2. 装 HAO**（在 `claude` 里敲这两条）：
 
 ```
-/plugin marketplace add YoungHong1992/HAO
+/plugin marketplace add hongge-ai/HAO
 /plugin install hao@hao
 ```
 
-**3. 直接说你要什么**：
+之后要装别的（Node、Docker、uv…）都由 agent 来做。
 
-> 帮我把 github.com/me/blog 这个仓库部署到 blog.example.com
+## 远程模式的安全边界
 
-> 服务器刚买的，先弄安全一点
-
-> 这台机器上装了什么？
-
-之后这台机器上再要装别的（Node、Docker、uv…）就都由 agent 来做了，
-第 1 步只有第一台机器需要手工。
-
-## 为什么必须在服务器上运行
-
-HAO 的所有操作都是本机操作。如果你在笔记本上装了这个 skill 而想部署一台远程
-VPS，agent 会**先拦住你**并说明：请先 `ssh` 到那台服务器，在服务器上启动
-Claude Code。在笔记本上跑这套流程只会把笔记本改坏。
+- **主机密钥钉死。** 第一次连接必须人工确认指纹，写进 `~/.ssh/hao_known_hosts`；
+  之后任何变更都是硬失败，不是「更新一下」。
+- **密码只用一次。** 装公钥那一步要么你自己在终端跑 `ssh-copy-id`，要么让
+  agent 读一个你自己建的 0600 文件；用完即删。密码永远不进命令行参数。
+- **目标身份先确认再动手。** `probe` 会报 hostname、公网 IP、系统版本；
+  没念给你确认之前不做任何写入。错机器上的 guard 检查全部返回放行值，
+  这是唯一能拦住它的东西。
+- **远端脚本过门禁才执行。** `bash -n`、无 CRLF、树哈希一致，三条全过才启用。
 
 ## 能装什么
 
@@ -160,22 +193,24 @@ skills/hao-deploy/
 ├── SKILL.md            入口：工作流程与硬规则
 ├── references/         每个模块一份「怎么检查、怎么装」
 ├── templates/          配置文件与生成物模板（内容的权威来源）
-└── scripts/            只有三件事必须走脚本
+└── scripts/            只有四件事必须走脚本
     ├── hao-secret.sh   凭据生成/复用/注入 —— 值不进对话
     ├── hao-state.sh    状态与交接契约 —— 格式不能漂
-    └── hao-guard.sh    覆盖前的归属判断 —— 全只读
+    ├── hao-guard.sh    覆盖前的归属判断 —— 全只读
+    └── hao-remote.sh   SSH 传输、主机指纹、远端会话 —— 密钥不进 argv
 .claude-plugin/         插件与市场清单
-tests/                  结构完整性 + 三个脚本的行为测试
+tests/                  结构完整性 + 脚本行为测试
 ```
 
-**没有 CLI，没有安装脚本。** 部署过程写在 `references/` 里由 agent 执行；
-只有密钥处理、状态写入、归属判断这三类必须确定性的事情保留成脚本。
+**没有 CLI 守护进程，没有安装脚本。** 部署过程写在 `references/` 里由 agent 执行；
+只有密钥处理、状态写入、归属判断、远程传输这四类必须确定性的事情保留成脚本。
 
 ## 开发
 
 ```bash
 ./tests/run.sh                     # 全量：bash -n、shellcheck、结构与行为测试、插件校验
 ./tests/test-guard.sh              # 单跑某一项
+HAO_TEST_REMOTE_TARGET=<别名> ./tests/test-remote.sh   # 加跑真机端到端
 claude plugin validate . --strict  # 插件清单校验
 claude --plugin-dir . -p "..."     # 本地加载 skill 试跑
 ```

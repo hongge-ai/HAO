@@ -211,6 +211,24 @@ INSTALL="$SCIENCE_DIR/install.sh"
 "$INSTALL" -h >/dev/null 2>&1 || fail "install.sh -h 应该退出 0"
 ok "install.sh -h 正常"
 
+out="$("$INSTALL" -h 2>&1)"
+case "$out" in
+    *"Reality 入站（默认 443）"*"HTTPS 正向代理（默认 8443）"*) ok "入口帮助使用新的默认端口" ;;
+    *) fail "入口帮助应显示 Reality 443、HTTPS 代理 8443，实际输出: $out" ;;
+esac
+
+out="$("$INSTALL" reality -h 2>&1)"
+case "$out" in
+    *"监听端口（默认 443）"*"伪装目标站点（默认 www.bing.com）"*) ok "Reality 帮助使用新的默认端口和 SNI" ;;
+    *) fail "Reality 帮助应显示 443 和 www.bing.com，实际输出: $out" ;;
+esac
+
+out="$("$INSTALL" proxy -h 2>&1)"
+case "$out" in
+    *"监听端口（默认 8443）"*) ok "HTTPS 代理帮助使用新的默认端口" ;;
+    *) fail "HTTPS 代理帮助应显示 8443，实际输出: $out" ;;
+esac
+
 if "$INSTALL" nonsense >/dev/null 2>&1; then
     fail "未知子命令应该退出非 0"
 fi

@@ -19,8 +19,8 @@
 ```bash
 sudo ./install.sh status                 # 先看现在是什么状态（只读，随便跑）
 
-sudo ./install.sh reality                # 装 Reality，默认 8443
-sudo ./install.sh proxy --domain proxy.example.com   # 装 HTTPS 代理，默认 8444
+sudo ./install.sh reality                # 装 Reality，默认 443
+sudo ./install.sh proxy --domain proxy.example.com   # 装 HTTPS 代理，默认 8443
 sudo ./install.sh bbr                    # 顺手打开 BBR
 ```
 
@@ -38,13 +38,18 @@ sudo ./install.sh bbr                    # 顺手打开 BBR
 
 ## 工具一：`reality`
 
-VLESS + XTLS-Vision + Reality。借用一个真实站点（默认 `www.microsoft.com`）的
+VLESS + XTLS-Vision + Reality。借用一个真实站点（默认 `www.bing.com`）的
 TLS 握手特征做伪装：被主动探测时把流量原样转给那个站点，探测者拿到的是对方的真实证书，
 看不出这里有代理。所以不需要自己的域名，也不需要证书。
 
 ```bash
-sudo ./install.sh reality --port 8443 --sni www.microsoft.com
+sudo ./install.sh reality --port 443 --sni www.bing.com
 ```
+
+**为什么默认是 bing.com**：2026-10 实测能完成 TLS 1.3 Reality 握手和真实代理请求。Reality 是把 `dest` 的握手字节原样转发，选目标时按这个顺序看：
+**真实 Reality 握手通过 → 证书链短于等于 3 级 → TLS 1.3 可协商 → 服务器能稳定连上
+→ 知名大厂站点**。不要只看知名度，也不要选 Cloudflare 节点（`www.cloudflare.com`、
+`www.speedtest.net` 之类，那段 IP 被大量代理滥用，已是重点监控对象）。
 
 客户端参数（含 UUID、公钥、shortId 和 vless:// 分享链接）写在
 `/etc/hao/xray-reality.client.txt`，权限 0600，自己 `sudo cat` 去看。
@@ -53,7 +58,9 @@ sudo ./install.sh reality --port 8443 --sni www.microsoft.com
 `--sni` 换别的站点时，那个站点必须**从这台服务器能连上**，而且它自己得支持
 TLS 1.3（Reality 要复现的就是对方的 TLS 1.3 握手）。脚本只验证可达性这一项，
 TLS 1.3 要你自己确认：`openssl s_client -tls1_3 -connect <站点>:443 </dev/null`。
-连不上的伪装目标等于没有伪装。
+连不上的伪装目标等于没有伪装。可达且支持 TLS 1.3 也不保证兼容：`www.microsoft.com`
+的 Certificate 记录可能超过 Reality 的 8192 字节预读上限，导致握手失败。换目标后
+必须用真实客户端发起代理请求，不能只看配置检查或伪装站点的证书。
 
 ## 工具二：`proxy`（就是「https 域名 端口 用户名 口令」那种）
 
@@ -61,7 +68,7 @@ TLS 1.3 要你自己确认：`openssl s_client -tls1_3 -connect <站点>:443 </d
 那串参数就是这个。
 
 ```bash
-sudo ./install.sh proxy --domain proxy.example.com --port 8444 --user example-usr
+sudo ./install.sh proxy --domain proxy.example.com --port 8443 --user example-usr
 ```
 
 口令默认自动生成 32 位随机串。要自带口令：
@@ -112,7 +119,7 @@ Nginx 配置，和这套模板打架）。80 端口空着就用 `--standalone`�
 
 脚本不会代你改防火墙（把自己关在门外的风险比省下的事大），云服务商的安全组更不在这台机器上：
 
-1. **云控制台的安全组 / 防火墙放行对应端口的 TCP**（8443 / 8444）。这是连不上时最常见的原因。
+1. **云控制台的安全组 / 防火墙放行对应端口的 TCP**（默认 443 / 8443）。这是连不上时最常见的原因。
 2. **DNS**（只有 `proxy` 需要）：一条 A 记录指向这台机器。
    用 Cloudflare 的话**必须是灰云（DNS only）** —— 橙云不代理这类端口。
 
@@ -201,8 +208,8 @@ printf 'proxy = "https://<域名>:<端口>"\nproxy-user = "<用户>:' > /tmp/pc
 read -rs -p '口令（不回显）: ' PW && printf '%s"\n' "$PW" >> /tmp/pc && unset PW
 curl -K /tmp/pc https://api.ipify.org; rm -f /tmp/pc    # 应该返回服务器的公网 IP
 
-# Reality 的伪装是否成立：应该看到伪装目标（如微软）的真实证书
-openssl s_client -connect <服务器IP>:8443 -servername www.microsoft.com </dev/null 2>/dev/null \
+# Reality 的伪装是否成立：应该看到伪装目标（如 Bing）的真实证书
+openssl s_client -connect <服务器IP>:443 -servername www.bing.com </dev/null 2>/dev/null \
   | openssl x509 -noout -subject -issuer
 ```
 

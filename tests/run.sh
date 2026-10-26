@@ -39,6 +39,9 @@ printf '== hao-secret ==\n'
 printf '== hao-state ==\n'
 "$ROOT_DIR/tests/test-state.sh"
 
+printf '== hao-remote ==\n'
+"$ROOT_DIR/tests/test-remote.sh"
+
 printf '== generic skill (runtime-neutral) ==\n'
 "$ROOT_DIR/tests/test-generic-skills.sh"
 

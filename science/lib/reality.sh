@@ -2,23 +2,26 @@
 #
 # science/lib/reality.sh —— 工具一：VLESS + XTLS-Vision + Reality 入站。
 #
-# 特点：不需要域名、不需要证书。Reality 借用一个真实站点（默认 www.microsoft.com）
+# 特点：不需要域名、不需要证书。Reality 借用一个真实站点（默认 www.bing.com）
 # 的 TLS 握手特征做伪装，被主动探测时把流量原样转给那个站点，探测者看到的是
 # 对方的真实证书。代价是只有支持 Reality 的客户端能连（v2rayN / v2rayNG /
 # Shadowrocket / sing-box / Mihomo），填不进「系统代理」那种地方。
+#
+# 默认目标在 2026-10 通过了真实 Reality 握手与代理请求。选目标不能只看可达性：
+# 目标的 Certificate 记录超过 Reality 预读上限时，TLS 1.3 站点也会握手失败。
 
 REALITY_SERVICE="xray-reality"
 REALITY_FRAGMENT_NAME="10-reality.json"
-REALITY_PORT_DEFAULT=8443
-REALITY_SNI_DEFAULT="www.microsoft.com"
+REALITY_PORT_DEFAULT=443
+REALITY_SNI_DEFAULT="www.bing.com"
 
 reality_usage() {
     cat >&2 <<'EOF'
 用法: sudo ./install.sh reality [选项]
 
 选项:
-  --port PORT       监听端口（默认 8443）
-  --sni DOMAIN      伪装目标站点（默认 www.microsoft.com），必须是真实可达的 HTTPS 站点
+  --port PORT       监听端口（默认 443）
+  --sni DOMAIN      伪装目标站点（默认 www.bing.com），必须是真实可达的 HTTPS 站点
   --rotate-keys     重新生成密钥与 UUID。**现有客户端全部失效**，默认不这么做
   -h, --help        显示本帮助
 
@@ -198,7 +201,7 @@ cmd_reality() {
   4. 启用并启动 xray，监听 ${port}/TCP，伪装成 $sni
   5. 记录状态到 /var/lib/hao，服务名 $REALITY_SERVICE
 
-  不会动：现有的 Nginx、80/443 端口、其他入站配置。
+  不会改：现有的 Nginx 配置、80 端口、其他入站配置。
 EOF
     confirm "继续？" || die "已取消，什么都没改。"
 

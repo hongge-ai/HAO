@@ -117,12 +117,12 @@ while IFS= read -r ref; do
         missing=1
     fi
 done < <(grep -rhoE 'docs/[A-Za-z0-9._-]+\.md' \
-    "$SKILL_DIR" "$ROOT_DIR/README.md" "$ROOT_DIR/CLAUDE.md" "$ROOT_DIR/SECURITY.md" \
+    "$SKILL_DIR" "$ROOT_DIR/README.md" "$ROOT_DIR/AGENTS.md" "$ROOT_DIR/SECURITY.md" \
     "$ROOT_DIR/.claude-plugin" 2>/dev/null | sort -u)
 [ "$missing" -eq 0 ] && note "指向 docs/ 的引用都存在" || fail=1
 
-# ---------- 三个脚本必须可执行且有帮助 ----------
-for s in hao-guard hao-secret hao-state; do
+# ---------- 四个脚本必须可执行且有帮助 ----------
+for s in hao-guard hao-secret hao-state hao-remote; do
     script="$SKILL_DIR/scripts/$s.sh"
     if [ ! -x "$script" ]; then
         bad "$s.sh 不可执行"
@@ -283,7 +283,7 @@ while IFS= read -r hit; do
     echo "FAIL 仍有对已删除旧 CLI 的引用: $hit" >&2
     stale=1
 done < <(grep -rnE 'hao-run\.sh|install-skill\.sh|references/services\.md|\./hao (plan|preflight|apply|status|doctor|inventory)' \
-    "$SKILL_DIR" "$ROOT_DIR/README.md" "$ROOT_DIR/CLAUDE.md" 2>/dev/null || true)
+    "$SKILL_DIR" "$ROOT_DIR/README.md" "$ROOT_DIR/AGENTS.md" 2>/dev/null || true)
 [ "$stale" -eq 0 ] && note "没有残留的旧 CLI 引用" || fail=1
 
 [ "$fail" -eq 0 ] || { echo "skill 结构测试失败" >&2; exit 1; }
