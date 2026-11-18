@@ -45,7 +45,8 @@ jobs:
 
       - name: Validate plugin manifests
         run: |
-          npm install -g @anthropic-ai/claude-code
+          # Keep strict validation reproducible as newer releases add lint rules.
+          npm install -g --allow-scripts=@anthropic-ai/claude-code @anthropic-ai/claude-code@2.1.220
           claude plugin validate . --strict
 
   # 注意：references/ 里的部署过程没有自动化测试 —— 散文没法 shellcheck。
