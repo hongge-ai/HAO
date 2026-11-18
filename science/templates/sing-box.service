@@ -1,0 +1,27 @@
+# 目标路径: /etc/systemd/system/sing-box.service  (0644)
+#
+# 关键设计说明：
+#   1. `-C /etc/sing-box/conf.d`：按文件名顺序自动合并该目录下所有 `.json` 配置文件。
+#      一个功能对应一个独立文件（00-base / 10-reality / 20-httpsproxy / 30-landing），
+#      增删单个入站无需改动其他文件；`.disabled` 或 `.bak` 后缀会被自动忽略。
+#   2. `ExecReload`：支持 `systemctl reload sing-box` 平滑重载配置与续期后的 TLS 证书。
+#   3. `User=root`：读取 `/etc/letsencrypt/live/*/privkey.pem`（0600 root:root）及绑定 443 端口所需。
+[Unit]
+Description=sing-box service
+Documentation=https://sing-box.sagernet.org
+After=network.target nss-lookup.target network-online.target
+
+[Service]
+Type=simple
+User=root
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+ExecStartPre=/usr/local/bin/sing-box check -D /var/lib/sing-box -C /etc/sing-box/conf.d
+ExecStart=/usr/local/bin/sing-box run -D /var/lib/sing-box -C /etc/sing-box/conf.d
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=3s
+LimitNOFILE=infinity
+
+[Install]
+WantedBy=multi-user.target

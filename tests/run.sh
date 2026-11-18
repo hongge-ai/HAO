@@ -45,7 +45,7 @@ printf '== generic skill (runtime-neutral) ==\n'
 printf '== hidden modules ==\n'
 "$ROOT_DIR/tests/test-hidden-modules.sh"
 
-printf '== science module (offline render + refusals) ==\n'
+printf '== science handbook (render + configuration checks) ==\n'
 "$ROOT_DIR/tests/test-science.sh"
 
 if command -v claude >/dev/null 2>&1; then

@@ -1,49 +1,44 @@
-// Managed by HAO
-// Service: xray-core
-// 目标路径: /usr/local/etc/xray/conf.d/00-base.json
+// 目标路径: /etc/sing-box/conf.d/00-base.json  (0644)
 //
-// 逐字安装，无占位符。这里只放所有入站共用的东西：日志、路由、出站。
-// 入站各自在 10-*.json / 20-*.json 里，互不影响。
-//
-// Xray 的 JSON 解析器会剥掉 // 注释（infra/conf/serial/loader.go），所以这个
-// 注释头是合法的，而且 hao-guard.sh 靠它判断归属（读文件内容，不看文件名）。
+// 所有入站共用的底座配置（无密钥、无占位符，直接原样写入）：
+//   1. 关闭访问日志（仅保留 warn 级别错误日志）：避免将个人访问记录落盘或写满磁盘。
+//   2. 内置纯净上游 DNS（1.1.1.1）+ 全局默认 ipv4_only 解析：
+//      彻底免疫部分海外机房默认系统 DNS 将 gstatic.com / fonts.googleapis.com 解析到
+//      203.208.x.x（Google 中国失效 IP）或不通的 IPv6 地址导致网页卡死几十秒的问题。
+//   3. 路由首条规则强制拦截私有地址（ip_is_private -> reject）：
+//      防止持有代理口令的客户端将本机当作跳板，探测或攻击仅监听 127.0.0.1 的本机无密码服务。
+//      sing-box 按文件名字典序追加合并数组，00- 前缀保证此拦截规则永远排在第一位。
 {
-  // access log 关掉是刻意的：一台个人代理的访问日志就是「这个人访问过哪些站」
-  // 的清单，留在盘上是纯粹的隐私负担；而且没人给它配轮转，早晚涨满磁盘。
-  // 排查故障看 error log 和 journalctl -u xray 就够了。
   "log": {
-    "loglevel": "warning",
-    "access": "none",
-    "error": "/var/log/xray/error.log"
+    "level": "warn",
+    "timestamp": true
   },
-
-  // 带认证的公网代理必须挡掉私有地址。否则拿到口令的人可以拿这台机器当跳板，
-  // 去打只监听 127.0.0.1 的本机服务（数据库、管理面板、其他 agent 的端口）——
-  // 那些服务往往因为「只有本机能连」而根本没设密码。
-  // 这条规则也是 geoip.dat 唯一的用处，没有它就不必下载那个文件。
-  "routing": {
-    "domainStrategy": "AsIs",
-    "rules": [
+  "dns": {
+    "servers": [
       {
-        "outboundTag": "block",
-        "ip": ["geoip:private"]
+        "type": "udp",
+        "tag": "cf-dns",
+        "server": "1.1.1.1"
       }
     ]
   },
-
-  // 出站全部写在这一个文件里：跨文件的 outbound 会被**前置**到数组开头，
-  // 而第一个 outbound 是默认出口。分散写会让「默认出口是哪个」随文件名变化。
-  // 同一文件内数组顺序保持不变，所以 direct 在前 = 默认直连。
   "outbounds": [
     {
-      "tag": "direct",
-      "protocol": "freedom",
-      "settings": {}
-    },
-    {
-      "tag": "block",
-      "protocol": "blackhole",
-      "settings": {}
+      "type": "direct",
+      "tag": "direct"
     }
-  ]
+  ],
+  "route": {
+    "default_domain_resolver": {
+      "server": "cf-dns",
+      "strategy": "ipv4_only"
+    },
+    "rules": [
+      {
+        "ip_is_private": true,
+        "action": "reject"
+      }
+    ],
+    "final": "direct"
+  }
 }
