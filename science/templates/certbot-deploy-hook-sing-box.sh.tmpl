@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# 目标路径: /etc/letsencrypt/renewal-hooks/deploy/reload-sing-box.sh  (0755)
+#
+# certbot 自动续期证书成功后的回调钩子：平滑重载（失败则重启）sing-box 以加载新证书。
+set -euo pipefail
+
+exec 9>/run/lock/sing-box-config.lock
+flock 9
+if systemctl is-active --quiet sing-box 2>/dev/null; then
+    /usr/local/bin/sing-box check -D /var/lib/sing-box -C /etc/sing-box/conf.d
+    systemctl reload sing-box 2>/dev/null || systemctl restart sing-box
+fi

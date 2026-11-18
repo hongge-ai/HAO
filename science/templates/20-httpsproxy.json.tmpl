@@ -1,60 +1,41 @@
-// Managed by HAO
-// Service: xray-httpsproxy
-// 目标路径: /usr/local/etc/xray/conf.d/20-httpsproxy.json  (0600)
+// 目标路径: /etc/sing-box/conf.d/20-httpsproxy.json  (0600，含代理口令)
 //
-// 这个文件含代理口令，权限 0600。**不要 cat 它，也不要贴进对话。**
-// 客户端要的参数在 /etc/hao/xray-httpsproxy.client.txt（同样 0600）。
+// HTTP/2 正向代理入站（TLS 加密 + Basic 认证），需要 sing-box >= 1.15.0。
+// 专为 Chrome 浏览器（ZeroOmega / SwitchyOmega 选 HTTPS 协议）免客户端直连设计：
+//   - 协商 ALPN h2（HTTP/2 多路复用），浏览器与 VPS 仅维持 1 条加密长连接，
+//     网页内几十个子域名并发共享同一隧道，避免跨洋重复握手与并发建连丢包。
+//   - 同时保留 http/1.1 回退兼容老客户端。
 //
-// 这就是「https 域名 端口 用户名 口令」那种代理：http 正向代理入站 + TLS + Basic 认证。
-// 占位符：@@PORT@@ @@DOMAIN@@ @@CERT_FULLCHAIN@@ @@CERT_KEY@@ 由脚本 sed 注入（非密钥），
-//         @@PROXY_USER@@ @@PROXY_PASSWORD@@ 由 hao-secret.sh render 注入（密钥）。
+// 占位符说明：
+//   @@PORT@@           监听端口（新机器若 443 空闲首选 443，否则可用 8443 / 2053 / 8445）
+//   @@DOMAIN@@         已解析到本机的域名（证书校验与 SNI 使用）
+//   @@CERT_FULLCHAIN@@ TLS 证书链绝对路径（如 /etc/letsencrypt/live/<域名>/fullchain.pem）
+//   @@CERT_KEY@@       TLS 私钥绝对路径（如 /etc/letsencrypt/live/<域名>/privkey.pem）
+//   @@PROXY_USER@@     代理认证用户名（切勿用 admin/user 等常见弱用户名）
+//   @@PROXY_PASSWORD@@ 代理认证高强度随机口令
 {
   "inbounds": [
     {
+      "type": "http",
       "tag": "httpsproxy-in",
-      "listen": "0.0.0.0",
-      "port": @@PORT@@,
-      "protocol": "http",
-      "settings": {
-        // 字段名是 accounts，**不是** users。上游文档那一页写的是 users，那是错的：
-        // 源码 infra/conf/http.go 的 HTTPServerConfig 只认 `accounts`。
-        // 写成 users 不会报错，会静默得到一个**没有认证的开放代理** —— 端口一开，
-        // 扫描器几小时内就会找到它，然后这台机器变成别人的跳板。
-        // 改这个文件之前先确认这一点。
-        "accounts": [
-          {
-            "user": "@@PROXY_USER@@",
-            "pass": "@@PROXY_PASSWORD@@"
-          }
-        ],
-        // false = 只处理代理请求（CONNECT / 绝对 URI），不接管发到本端口的普通
-        // HTTP 请求。设成 true 容易做出无限自环。
-        "allowTransparent": false
-      },
-      "streamSettings": {
-        "network": "tcp",
-        "security": "tls",
-        "tlsSettings": {
-          "serverName": "@@DOMAIN@@",
-          // 只谈 http/1.1：代理的 CONNECT 语义走 HTTP/1.1。让客户端谈成 h2
-          // 会得到「TLS 握手成功但代理不工作」这种最难查的故障。
-          "alpn": ["http/1.1"],
-          "minVersion": "1.2",
-          "certificates": [
-            {
-              // 直接指向 certbot 的 live 目录。oneTimeLoading 默认 false，
-              // xray 会周期性重读这两个文件，所以续期后不重启也能拿到新证书；
-              // deploy hook 里的重启是确定性兜底。
-              "certificateFile": "@@CERT_FULLCHAIN@@",
-              "keyFile": "@@CERT_KEY@@"
-            }
-          ]
+      "listen": "::",
+      "listen_port": @@PORT@@,
+      "version": [1, 2],
+      "users": [
+        {
+          "username": "@@PROXY_USER@@",
+          "password": "@@PROXY_PASSWORD@@"
         }
-      },
-      "sniffing": {
+      ],
+      "tls": {
         "enabled": true,
-        "destOverride": ["http", "tls"],
-        "routeOnly": true
+        "server_name": "@@DOMAIN@@",
+        "alpn": [
+          "h2",
+          "http/1.1"
+        ],
+        "certificate_path": "@@CERT_FULLCHAIN@@",
+        "key_path": "@@CERT_KEY@@"
       }
     }
   ]

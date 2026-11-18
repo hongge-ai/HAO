@@ -1,0 +1,61 @@
+// 目标路径: /etc/sing-box/conf.d/30-landing.json  (0600，含落地节点凭据，按需选配)
+//
+// 链式落地分流扩展（当主力线路机 IP 被高风控站点嫌弃，需要接一台双 ISP / 原生住宅落地机时启用）。
+// 因为文件名以 30- 开头，合并时：
+//   - 00-base.json 的私有地址拦截规则（ip_is_private -> reject）依然排在第一位优先拦截；
+//   - reality-in 的全部流量、以及 httpsproxy-in 中使用专属账号 @@ISP_USER@@ 的流量，
+//     自动通过 landing-out 走后端纯净落地机出站；
+//   - httpsproxy-in 的默认账号仍走 00-base.json 的 final ("direct") 本机高速直连。
+//
+// 占位符说明：
+//   @@LANDING_SERVER@@     落地机公网 IP 或域名
+//   @@LANDING_PORT@@       落地机监听端口（如 443 或 8443）
+//   @@LANDING_UUID@@       落地机 VLESS UUID
+//   @@LANDING_SNI@@        落地机 REALITY 伪装域名（如 www.microsoft.com）
+//   @@LANDING_PUBLIC_KEY@@ 落地机 REALITY 公钥（pbk）
+//   @@LANDING_SHORT_ID@@   落地机 REALITY short_id（sid）
+//   @@ISP_USER@@           在 20-httpsproxy.json 的 users 中额外添加的浏览器分流用户名（如 isp）
+{
+  "outbounds": [
+    {
+      "type": "vless",
+      "tag": "landing-out",
+      "server": "@@LANDING_SERVER@@",
+      "server_port": @@LANDING_PORT@@,
+      "uuid": "@@LANDING_UUID@@",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "@@LANDING_SNI@@",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "@@LANDING_PUBLIC_KEY@@",
+          "short_id": "@@LANDING_SHORT_ID@@"
+        }
+      }
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "inbound": [
+          "reality-in"
+        ],
+        "outbound": "landing-out"
+      },
+      {
+        "inbound": [
+          "httpsproxy-in"
+        ],
+        "auth_user": [
+          "@@ISP_USER@@"
+        ],
+        "outbound": "landing-out"
+      }
+    ]
+  }
+}

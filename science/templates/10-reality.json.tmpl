@@ -1,48 +1,41 @@
-// Managed by HAO
-// Service: xray-reality
-// 目标路径: /usr/local/etc/xray/conf.d/10-reality.json  (0600)
+// 目标路径: /etc/sing-box/conf.d/10-reality.json  (0600，含私钥与 UUID)
 //
-// 这个文件含 Reality 私钥与 UUID，权限 0600。**不要 cat 它，也不要贴进对话。**
-// 客户端要的参数在 /etc/hao/xray-reality.client.txt（同样 0600）。
+// VLESS + XTLS-Vision + REALITY 抗封锁入站（无需域名、无需证书）。
+// 被主动探测时会将非授权握手透明转发给伪装站点，探测方拿到的是伪装站点的真实证书。
 //
-// 占位符：@@PORT@@ @@DEST_SNI@@ 由脚本 sed 注入（非密钥），
-//         @@PRIVATE_KEY@@ @@UUID@@ @@SHORT_ID@@ 由 hao-secret.sh render 注入（密钥）。
+// 占位符说明：
+//   @@PORT@@        监听端口（如 8443 或 443）
+//   @@DEST_SNI@@    伪装目标域名（如 www.microsoft.com，必须从本机真实可达且支持 TLS 1.3）
+//   @@UUID@@        VLESS 客户端 UUID（sing-box generate uuid 生成）
+//   @@PRIVATE_KEY@@ REALITY 服务端私钥（sing-box generate reality-keypair 生成）
+//   @@SHORT_ID@@    REALITY short_id（1-16 位十六进制，如 openssl rand -hex 8）
 {
   "inbounds": [
     {
-      // tag 是跨文件合并的身份：同名 tag 覆盖，不同名追加。改了它就会多出一个入站。
+      "type": "vless",
       "tag": "reality-in",
-      "listen": "0.0.0.0",
-      "port": @@PORT@@,
-      "protocol": "vless",
-      "settings": {
-        "clients": [
-          {
-            "id": "@@UUID@@",
-            "flow": "xtls-rprx-vision"
-          }
-        ],
-        "decryption": "none"
-      },
-      "streamSettings": {
-        "network": "tcp",
-        "security": "reality",
-        "realitySettings": {
-          "show": false,
-          // dest 必须是真实可达的 HTTPS 站点：主动探测时 xray 把流量原样转给它，
-          // 探测者看到的是那个站点的真实证书。写一个连不上的域名 = 探测立刻暴露。
-          "dest": "@@DEST_SNI@@:443",
-          "xver": 0,
-          "serverNames": ["@@DEST_SNI@@"],
-          "privateKey": "@@PRIVATE_KEY@@",
-          "shortIds": ["@@SHORT_ID@@"]
+      "listen": "::",
+      "listen_port": @@PORT@@,
+      "users": [
+        {
+          "uuid": "@@UUID@@",
+          "flow": "xtls-rprx-vision"
         }
-      },
-      // 嗅探出目标域名，路由规则才能按域名匹配；否则只能看到 IP。
-      "sniffing": {
+      ],
+      "tls": {
         "enabled": true,
-        "destOverride": ["http", "tls", "quic"],
-        "routeOnly": true
+        "server_name": "@@DEST_SNI@@",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "@@DEST_SNI@@",
+            "server_port": 443
+          },
+          "private_key": "@@PRIVATE_KEY@@",
+          "short_id": [
+            "@@SHORT_ID@@"
+          ]
+        }
       }
     }
   ]

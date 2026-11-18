@@ -21,14 +21,32 @@ jobs:
           # 只用它的二进制做语法检查，不需要跑服务 —— 停掉，免得占着 80 端口。
           sudo systemctl stop nginx || true
 
+      - name: Install pinned sing-box for configuration checks
+        run: |
+          set -euo pipefail
+          # Use the same release and digest as the deployment handbook.
+          version=1.15.0-alpha.13
+          asset="sing-box-${version}-linux-amd64"
+          work="$(mktemp -d)"
+          trap 'rm -rf -- "$work"' EXIT
+          cd "$work"
+          curl -fsSL --retry 3 --max-time 120 "https://github.com/SagerNet/sing-box/releases/download/v${version}/${asset}.tar.gz" -o "${asset}.tar.gz"
+          printf '%s  %s.tar.gz\n' bfc39f643a5ecc1b702c5723ff662e61dde813f12b3af0d0cfce4f629ff74047 "$asset" | sha256sum -c -
+          tar -xzf "${asset}.tar.gz"
+          install -D -m 0755 "${asset}/sing-box" "$RUNNER_TEMP/config-check-bin/sing-box"
+          echo "$RUNNER_TEMP/config-check-bin" >> "$GITHUB_PATH"
+
       # tests/run.sh 会在 claude CLI 可用时顺带跑 plugin validate；
       # CI 上没有 claude CLI，所以下面用独立 step 校验插件清单。
       - name: Repository test suite
+        env:
+          HAO_REQUIRE_SING_BOX: "1"
         run: ./tests/run.sh
 
       - name: Validate plugin manifests
         run: |
-          npm install -g @anthropic-ai/claude-code
+          # Keep strict validation reproducible as newer releases add lint rules.
+          npm install -g --allow-scripts=@anthropic-ai/claude-code @anthropic-ai/claude-code@2.1.220
           claude plugin validate . --strict
 
   # 注意：references/ 里的部署过程没有自动化测试 —— 散文没法 shellcheck。
